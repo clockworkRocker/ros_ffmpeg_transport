@@ -1,0 +1,11 @@
+# -------- IDE Files --------- #
+.vscode/
+.idea/
+
+
+# --------- Build dirs -------- #
+
+build/
+install/
+log/
+

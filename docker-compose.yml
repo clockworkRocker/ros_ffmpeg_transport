@@ -1,0 +1,18 @@
+services:
+  ffmpeg-dev-container:
+    image: ffmpeg_ws
+    build: 
+      context: ${WORKSPACE_DIR}
+      dockerfile: ${WORKSPACE_DIR}/ffmpeg_ws.dockerfile
+    volumes:
+      - /dev:/dev
+      - ${WORKSPACE_DIR}:/ros_ws
+    privileged: true
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: 'nvidia'
+              count: 'all'
+              capabilities: ['gpu', 'video']

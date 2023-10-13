@@ -1,0 +1,5 @@
+decoder:
+  name: h264_cuvid
+
+input_topic: /color/packet
+output_topic: /color/image_decoded
