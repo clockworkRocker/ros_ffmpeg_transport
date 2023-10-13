@@ -1,5 +1,5 @@
 decoder:
-  name: hevc
+  name: h264
 
 input_topic: /packet
 output_topic: /image_decoded

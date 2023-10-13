@@ -76,7 +76,8 @@ void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
   if (!ret) {
     auto compact = m_encoder.getPacket();
     OutMessage outMsg;
-    outMsg.set__header(msg.header);
+    outMsg.header.set__frame_id(msg.header.frame_id);
+    outMsg.header.set__stamp(tic);
 
     outMsg.set__width(m_encoder.frameWidth());
     outMsg.set__height(m_encoder.frameHeight());
