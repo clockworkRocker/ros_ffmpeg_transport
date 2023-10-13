@@ -32,7 +32,7 @@ class CodecBase {
 
   /// Get the first pixel format that is supported by the codec
   inline AVPixelFormat defaultPixFmt() const {
-    return m_ctx->codec->pix_fmts[1];
+    return m_ctx->codec->pix_fmts[0];
   }
 
   /// Get codec frame rate
@@ -120,15 +120,6 @@ class CodecBase {
   }
 
  public:  // * Pipeline functions
-  /**
-   * @brief Load an codec preset
-   */
-  int usePreset(const std::string& preset);
-
-  /**
-   * @brief Set codec's tuning. You can look those up using `ffmpeg -h`
-   */
-  int useTune(const std::string& value);
 
   /**
    * @brief Initialize the codec for encoding/decoding

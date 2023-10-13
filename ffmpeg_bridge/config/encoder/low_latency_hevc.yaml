@@ -1,0 +1,14 @@
+encoder:
+  name: libx265
+
+  options:
+    preset: ultrafast
+    tune: zerolatency
+    delay: 0
+    zerolatency: 1
+
+  fps: 30
+  keyframe_every: 120 # frames
+
+input_topic: '/image_raw'
+output_topic: '/packet'

@@ -1,0 +1,10 @@
+encoder:
+  name: hvec_nvenc
+  fps: 30
+  keyframe_every: 60 # frames
+
+  options:
+    preset: p1
+
+input_topic: /image_raw
+output_topic: /packet

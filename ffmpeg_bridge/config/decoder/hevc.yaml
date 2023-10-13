@@ -1,5 +1,5 @@
 decoder:
-  name: h264_cuvid
+  name: hevc
 
 input_topic: /color/packet
 output_topic: /color/image_decoded

@@ -101,12 +101,10 @@ int DecodingForwarder::reconfigureDecoder(const InMessage& msg) {
 
 void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   int ret = 0;
+
   fillPacket(msg);
 
-  if (m_packet.hasKeyframe()) {
-    RCLCPP_INFO(get_logger(), "I just recieved a keyframe! :D");
-    m_recievedKeyframe = true;
-  }
+  if (m_packet.hasKeyframe()) m_recievedKeyframe = true;
 
   // * If not a single keyframe has been recieved, the decoder has nothing to
   //   start decoding from
@@ -136,6 +134,13 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   outMsg << m_decoder.getFrame();
 
   m_pub->publish(outMsg);
+
+  // * Calculate latency
+  if (msg.keyframe)
+    RCLCPP_INFO(
+        get_logger(), "Decoded keyframe with a delay of %lf ms",
+        (get_clock()->now() - rclcpp::Time(outMsg.header.stamp)).seconds() *
+            1000);
 }
 
 }  // namespace ffmpeg_bridge
