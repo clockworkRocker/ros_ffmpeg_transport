@@ -44,7 +44,7 @@ EncodingForwarder::EncodingForwarder(const YAML::Node& config)
           10)),
       m_encoder(config["encoder"]["name"]
                     ? config["encoder"]["name"].as<std::string>()
-                    : "nevc_nvenc"),
+                    : "libx264"),
       m_options(config["encoder"]["options"]),
       m_fps(config["encoder"]["fps"]  //
                 ? config["encoder"]["fps"].as<int>()
@@ -59,11 +59,15 @@ EncodingForwarder::EncodingForwarder(const YAML::Node& config)
 
 void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
   int ret;
-  rclcpp::Time tic = get_clock()->now();
+  static int recievedImages = 0;
+  static double latency = 0.;
+  static double conversionTime = 0.;
+  static double transferTime = 0.;
 
-  if (m_encoder.getPacket().hasKeyframe()) tic = get_clock()->now();
-
+  auto tic = get_clock()->now();
+  transferTime += (tic - msg.header.stamp).seconds() * 1000;
   fillFrame(msg);
+  conversionTime += (get_clock()->now() - tic).seconds() * 1000;
 
   if (m_encoder.frameWidth() != m_frame.width() ||
       m_encoder.frameHeight() != m_frame.height() ||
@@ -75,9 +79,8 @@ void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
 
   if (!ret) {
     auto compact = m_encoder.getPacket();
+
     OutMessage outMsg;
-    outMsg.header.set__frame_id(msg.header.frame_id);
-    outMsg.header.set__stamp(tic);
 
     outMsg.set__width(m_encoder.frameWidth());
     outMsg.set__height(m_encoder.frameHeight());
@@ -91,11 +94,32 @@ void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
     outMsg.data.resize(compact.size());
     outMsg.data.assign(compact.buffer(), compact.buffer() + compact.size());
 
+    outMsg.header.set__frame_id(msg.header.frame_id);
+    outMsg.header.set__stamp(get_clock()->now());
+
     m_pub->publish(outMsg);
-    auto toc = get_clock()->now() - tic;
-    if (outMsg.keyframe)
-      RCLCPP_INFO(get_logger(), "Published a keyframe after %lf ms",
-                  toc.seconds() * 1000.);
+
+    latency += (rclcpp::Time(outMsg.header.stamp) -
+                rclcpp::Time(static_cast<uint32_t>(compact.pts() >> 32),
+                             static_cast<int32_t>((compact.pts() << 32) >> 32),
+                             RCL_ROS_TIME))
+                   .seconds() *
+               1000;
+
+    ++recievedImages;
+
+    if (recievedImages == 256) {
+      RCLCPP_INFO(get_logger(),
+                  "\nAvg. waiting for image time: %lf ms"
+                  "\nAvg. conversion to frame time: %lf ms"
+                  "\nAverage encoding time: %lf ms",
+                  transferTime / recievedImages,
+                  conversionTime / recievedImages, latency / recievedImages);
+      latency = 0;
+      conversionTime = 0;
+      transferTime = 0.;
+      recievedImages = 0;
+    }
   };
 }
 
@@ -121,7 +145,7 @@ int EncodingForwarder::reconfigureEncoder(const sensor_msgs::msg::Image& msg) {
       ret = m_encoder.setOption(option.first.as<std::string>(),
                                 option.second.as<std::string>());
       if (ret < 0)
-        RCLCPP_WARN(get_logger(), "Couldn't provide option %s",
+        RCLCPP_WARN(get_logger(), "Option not set: %s",
                     option.first.as<std::string>().c_str());
     }
 

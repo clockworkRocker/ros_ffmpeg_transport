@@ -41,7 +41,7 @@ class Frame {
 
   inline int64_t pts() const { return m_frame->pts; }
 
-  inline bool isKeyFrame() const { return m_frame->key_frame; };
+  inline bool isKeyFrame() const { return m_frame->pict_type == AV_PICTURE_TYPE_I; };
 
   inline uint8_t* buffer() { return m_frame->data[0]; }
   inline const uint8_t* buffer() const { return m_frame->data[0]; }

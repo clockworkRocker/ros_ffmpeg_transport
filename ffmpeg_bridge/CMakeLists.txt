@@ -14,9 +14,15 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(ffmpeg_interfaces REQUIRED)
 
-find_library(AVCODEC_LIBRARY avcodec REQUIRED)
-find_library(AVUTIL_LIBRARY avutil REQUIRED)
-find_library(SWSCALE_LIBRARY swscale REQUIRED)
+find_library(AVCODEC_LIBRARY avcodec REQUIRED
+  HINTS /usr/local/lib/
+  NO_DEFAULT_PATH)
+find_library(AVUTIL_LIBRARY avutil REQUIRED
+  HINTS /usr/local/lib/
+  NO_DEFAULT_PATH)
+find_library(SWSCALE_LIBRARY swscale REQUIRED
+  HINTS /usr/local/lib/
+  NO_DEFAULT_PATH)
 
 find_library(YAMLCPP_LIBRARY yaml-cpp REQUIRED)
 

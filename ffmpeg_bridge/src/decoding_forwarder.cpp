@@ -65,6 +65,7 @@ int DecodingForwarder::fillPacket(const InMessage& msg) {
   if (msg.keyframe) m_packet.raw()->flags |= AV_PKT_FLAG_KEY;
   memcpy(m_packet.raw()->data, &msg.data[0], msg.size);
   m_packet.setCodecID(m_decoder.id());
+  m_packet.raw()->pts = msg.pts;
 
   return ret;
 }
@@ -79,7 +80,7 @@ int DecodingForwarder::reconfigureDecoder(const InMessage& msg) {
       ret = m_decoder.setOption(option.first.as<std::string>(),
                                 option.second.as<std::string>());
       if (ret < 0)
-        RCLCPP_WARN(get_logger(), "Couldn't provide option %s",
+        RCLCPP_WARN(get_logger(), "Option not set: %s",
                     option.first.as<std::string>().c_str());
     }
 
@@ -88,21 +89,36 @@ int DecodingForwarder::reconfigureDecoder(const InMessage& msg) {
   m_decoder.setFramePixelFormat(static_cast<AVPixelFormat>(msg.pix_fmt));
   m_decoder.setBitrate(m_decoder.ACCORDINGLY);
 
-  // * Assume 60 fps
-  m_decoder.setFramerate(AVRational{60, 1});
-  m_decoder.setTimeBase(AVRational{1, 60});
+  // // * Assume 60 fps
+  // m_decoder.setFramerate(AVRational{60, 1});
+  // m_decoder.setTimeBase(AVRational{1, 60});
 
-  // * Stolen from example. Not sure what it does but it is necessary for codecs
-  //   to work
-  m_decoder.setGOPSize(10);
+  // // * Stolen from example. Not sure what it does but it is necessary for
+  // codecs
+  // //   to work
+  // m_decoder.setGOPSize(10);
 
   return m_decoder.open();
 }
 
 void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   int ret = 0;
+  static int recievedFrames = 0;
+  static double encoderTime = 0;
+  static double messageTime = 0.;
+  static double decodingTime = 0;
+  static double conversionTime = 0.;
+  static double publishingTime = 0;
+  static double totalLatency = 0.;
 
   fillPacket(msg);
+  encoderTime +=
+      (rclcpp::Time(msg.header.stamp) -
+       rclcpp::Time(static_cast<uint32_t>(msg.pts >> 32),
+                    static_cast<int32_t>((msg.pts << 32) >> 32), RCL_ROS_TIME))
+          .seconds() *
+      1000;
+  messageTime += (get_clock()->now() - msg.header.stamp).seconds() * 1000;
 
   if (m_packet.hasKeyframe()) m_recievedKeyframe = true;
 
@@ -123,9 +139,9 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   if (ret < 0) throw std::runtime_error(avwrapper::getErrorMessage(ret));
   if (ret == 1) return;
 
+  auto tic = get_clock()->now();
+
   OutMessage outMsg;
-  outMsg.header.set__frame_id(msg.header.frame_id);
-  outMsg.header.set__stamp(get_clock()->now());
   outMsg.set__width(m_decoder.frameWidth());
   outMsg.set__height(m_decoder.frameHeight());
   outMsg.set__encoding("rgb8");
@@ -133,14 +149,48 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
 
   outMsg << m_decoder.getFrame();
 
+  outMsg.header.set__stamp(get_clock()->now());
+  outMsg.header.set__frame_id(msg.header.frame_id);
+
+  auto toc = get_clock()->now();
+
   m_pub->publish(outMsg);
 
+  conversionTime += (toc - tic).seconds() * 1000;
+  publishingTime += (get_clock()->now() - toc).seconds() * 1000;
+
+  ++recievedFrames;
+
   // * Calculate latency
-  if (msg.keyframe)
-    RCLCPP_INFO(
-        get_logger(), "Decoded keyframe with a delay of %lf ms",
-        (get_clock()->now() - rclcpp::Time(outMsg.header.stamp)).seconds() *
-            1000);
+  if (m_decoder.getFrame().pts() > 0) {
+    rclcpp::Time originalStamp(
+        static_cast<uint32_t>(m_decoder.getFrame().pts() >> 32),
+        static_cast<int32_t>((m_decoder.getFrame().pts() << 32) >> 32),
+        RCL_ROS_TIME);
+
+    totalLatency += (get_clock()->now() - originalStamp).seconds() * 1000;
+  }
+
+  if (recievedFrames == 256) {
+    decodingTime = totalLatency - (encoderTime + messageTime + conversionTime +
+                                   publishingTime);
+    RCLCPP_INFO(get_logger(),
+                "\nAvg. encoder delay: %lf ms"
+                "\nAvg. packet time: %lf ms"
+                "\nAvg. decoding time: %lf ms"
+                "\nAvg. conversion time: %lf ms"
+                "\nAvg. publish time: %lf ms"
+                "\nTotal latency: %lf ms",
+                encoderTime / recievedFrames, messageTime / recievedFrames,
+                decodingTime / recievedFrames, conversionTime / recievedFrames,
+                publishingTime / recievedFrames, totalLatency / recievedFrames);
+    encoderTime = 0.;
+    messageTime = 0.;
+    conversionTime = 0.;
+    publishingTime = 0.;
+    totalLatency = 0.;
+    recievedFrames = 0;
+  }
 }
 
 }  // namespace ffmpeg_bridge

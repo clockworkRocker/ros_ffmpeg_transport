@@ -32,6 +32,8 @@ class CodecBase {
 
   /// Get the first pixel format that is supported by the codec
   inline AVPixelFormat defaultPixFmt() const {
+    // if (std::string(name()).find_first_of("nvenc") != std::string::npos)
+    //   return AV_PIX_FMT_NV12;
     return m_ctx->codec->pix_fmts[0];
   }
 
@@ -52,6 +54,11 @@ class CodecBase {
   /// Get codec ID
   inline AVCodecID id() const {
     return m_ctx ? m_ctx->codec_id : AV_CODEC_ID_NONE;
+  }
+
+  /// Get codec name
+  inline const char* name() const {
+    return m_ctx ? m_ctx->codec->name : "";
   }
 
   /// Get frame pixel format
@@ -140,7 +147,7 @@ class CodecBase {
   void reset();
 
  protected:
-  inline CodecBase(AVCodec* codec)
+  inline CodecBase(const AVCodec* codec)
       : /* m_codec(codec), */ m_ctx(avcodec_alloc_context3(codec)) {}
 
  protected:
