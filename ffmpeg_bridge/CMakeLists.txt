@@ -13,23 +13,14 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(ffmpeg_interfaces REQUIRED)
-
-find_library(AVCODEC_LIBRARY avcodec REQUIRED
-  HINTS /usr/local/lib/
-  NO_DEFAULT_PATH)
-find_library(AVUTIL_LIBRARY avutil REQUIRED
-  HINTS /usr/local/lib/
-  NO_DEFAULT_PATH)
-find_library(SWSCALE_LIBRARY swscale REQUIRED
-  HINTS /usr/local/lib/
-  NO_DEFAULT_PATH)
+find_package(avcpp REQUIRED)
 
 find_library(YAMLCPP_LIBRARY yaml-cpp REQUIRED)
 
-set(FFMPEG_LIBS ${AVCODEC_LIBRARY} ${AVUTIL_LIBRARY} ${SWSCALE_LIBRARY})
 
 include_directories(
   ${PROJECT_SOURCE_DIR}/include/
+  ${avcpp_INCLUDE_DIRS}
 )
 
 if (ADDR_SANITIZE)
@@ -44,7 +35,9 @@ ament_target_dependencies(${PROJECT_LIBRARY_NAME}
   sensor_msgs
   ffmpeg_interfaces
 )
-target_link_libraries(${PROJECT_LIBRARY_NAME} ${FFMPEG_LIBS})
+target_link_libraries(${PROJECT_LIBRARY_NAME} ${avcpp_LIBRARIES})
+
+message("-- Using libav libraries: ${avcpp_LIBRARIES}")
 
 # ------------------------------- ENCODER NODE ------------------------------ #
 set(ENCODER_EXEC_NAME encoder_node)
@@ -60,6 +53,7 @@ ament_target_dependencies(${ENCODER_EXEC_NAME}
 )
 target_link_libraries(${ENCODER_EXEC_NAME} 
   ${PROJECT_LIBRARY_NAME}
+  ${avcpp_LIBRARIES}
   ${YAMLCPP_LIBRARY}
 )
 
@@ -77,7 +71,7 @@ ament_target_dependencies(${DECODER_EXEC_NAME}
 )
 target_link_libraries(${DECODER_EXEC_NAME} 
   ${PROJECT_LIBRARY_NAME}
-  ${FFMPEG_LIBS}
+  ${avcpp_LIBRARIES}
   ${YAMLCPP_LIBRARY}
 )
 

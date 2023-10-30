@@ -4,11 +4,6 @@
 
 #include "ffmpeg_bridge/formats.h"
 
-extern "C" {
-#include <libavutil/imgutils.h>
-#include <libswscale/swscale.h>
-}
-
 /* ================================== TYPES ================================= */
 struct SwsContextDeleter {
   void operator()(SwsContext** ptr) {
@@ -33,7 +28,7 @@ unsigned ConversionMethod = SWS_LANCZOS;
 /* =========================== DATA FILL OPERATORS ========================== */
 
 const sensor_msgs::msg::Image& operator>>(const sensor_msgs::msg::Image& msg,
-                                          avwrapper::Frame& frame) {
+                                          avcpp::Frame& frame) {
   const uint8_t* data[] = {&msg.data[0]};
   const int linesize[] = {static_cast<int>(msg.step)};
 
@@ -49,7 +44,7 @@ const sensor_msgs::msg::Image& operator>>(const sensor_msgs::msg::Image& msg,
 }
 
 sensor_msgs::msg::Image& operator<<(sensor_msgs::msg::Image& msg,
-                                    const avwrapper::Frame& frame) {
+                                    const avcpp::Frame& frame) {
   AVPixelFormat format = getPixelFormat(msg.encoding);
   msg.data.resize(
       av_image_get_buffer_size(format, frame.width(), frame.height(), 32));

@@ -1,22 +1,22 @@
-#include <av_wrapper/macros.h>
 #include <ffmpeg_bridge/converters.h>
 #include <ffmpeg_bridge/formats.h>
 
 #include <ffmpeg_bridge/decoding_forwarder.hpp>
 
 using std::placeholders::_1;
-using namespace avwrapper;
+using namespace avcpp;
 
 namespace ffmpeg_bridge {
 DecodingForwarder::DecodingForwarder(const std::string& inputTopic,
                                      const std::string& outputTopic,
                                      AVCodecID codec)
-    : Node("ffmpeg_decoding_forwarder"),
-      m_sub(create_subscription<InMessage>(
-          inputTopic, 10,
-          std::bind(&DecodingForwarder::subscriptionCallback, this, _1))),
-      m_pub(create_publisher<OutMessage>(outputTopic, 10)),
-      m_decoder(codec) {}
+    : Node("ffmpeg_decoding_forwarder"), m_decoder(codec) {
+  m_sub = create_subscription<InMessage>(
+      inputTopic, 10,
+      // * Bind the subscription callback using a lambda
+      [this](const InMessage& msg) { return subscriptionCallback(msg); });
+  m_pub = create_publisher<OutMessage>(outputTopic, 10);
+}
 
 DecodingForwarder::DecodingForwarder(const std::string& inputTopic,
                                      const std::string& outputTopic,
@@ -24,25 +24,39 @@ DecodingForwarder::DecodingForwarder(const std::string& inputTopic,
     : Node("ffmpeg_decoding_forwarder"),
       m_sub(create_subscription<InMessage>(
           inputTopic, 10,
-          std::bind(&DecodingForwarder::subscriptionCallback, this, _1))),
+          // * Bind the subscription callback using a lambda
+          [this](const InMessage& msg) { return subscriptionCallback(msg); })),
       m_pub(create_publisher<OutMessage>(outputTopic, 10)),
       m_decoder(decoderName) {}
 
 DecodingForwarder::DecodingForwarder(const YAML::Node& config)
     : Node("ffmpeg_decoding_forwarder"),
+      /* ------------------- Subscription initialization -------------------- */
       m_sub(create_subscription<InMessage>(
-          config["input_topic"] ? config["input_topic"].as<std::string>()
-                                : "/packet",
-          10, std::bind(&DecodingForwarder::subscriptionCallback, this, _1))),
+          config["input_topic"]  // * Check the YAML config for input topic name
+              ? config["input_topic"].as<std::string>()
+              : "/packet",
+          10,
+          // * Bind the subscription callback using a lambda
+          [this](const InMessage& msg) { return subscriptionCallback(msg); })),
+
+      /* --------------------- Publisher initialization --------------------- */
       m_pub(create_publisher<OutMessage>(
-          config["output_topic"] ? config["output_topic"].as<std::string>()
-                                 : "/image_decoded",
+          config["output_topic"]  // * Check the YAML config for an output topic
+                                  // name
+              ? config["output_topic"].as<std::string>()
+              : "/image_decoded",
           10)),
-      m_decoder(config["decoder"]["name"]
-                    ? config["decoder"]["name"].as<std::string>().c_str()
-                    : "hevc_cuvid"),
+
+      /* ------------------ Internal decoder initialization ----------------- */
+      m_decoder(
+          config["decoder"]["name"]  // * Check the YAML config for decoder name
+              ? config["decoder"]["name"].as<std::string>().c_str()
+              : "hevc_cuvid"),
+
+      /* ------------------- Decoder options initialization ------------------
+       */
       m_options(config["decoder"]["options"]) {
-  std::cout << m_options << '\n';
   RCLCPP_INFO(get_logger(),
               "Created decoder. \nSubscribed to %s. Publishing packets on %s",
               m_sub->get_topic_name(), m_pub->get_topic_name());
@@ -89,15 +103,6 @@ int DecodingForwarder::reconfigureDecoder(const InMessage& msg) {
   m_decoder.setFramePixelFormat(static_cast<AVPixelFormat>(msg.pix_fmt));
   m_decoder.setBitrate(m_decoder.ACCORDINGLY);
 
-  // // * Assume 60 fps
-  // m_decoder.setFramerate(AVRational{60, 1});
-  // m_decoder.setTimeBase(AVRational{1, 60});
-
-  // // * Stolen from example. Not sure what it does but it is necessary for
-  // codecs
-  // //   to work
-  // m_decoder.setGOPSize(10);
-
   return m_decoder.open();
 }
 
@@ -113,11 +118,7 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
 
   fillPacket(msg);
   encoderTime +=
-      (rclcpp::Time(msg.header.stamp) -
-       rclcpp::Time(static_cast<uint32_t>(msg.pts >> 32),
-                    static_cast<int32_t>((msg.pts << 32) >> 32), RCL_ROS_TIME))
-          .seconds() *
-      1000;
+      (rclcpp::Time(msg.header.stamp) - UNPACK_STAMP(msg.pts)).seconds() * 1000;
   messageTime += (get_clock()->now() - msg.header.stamp).seconds() * 1000;
 
   if (m_packet.hasKeyframe()) m_recievedKeyframe = true;
@@ -136,7 +137,7 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   }
 
   ret = m_decoder.decode(m_packet);
-  if (ret < 0) throw std::runtime_error(avwrapper::getErrorMessage(ret));
+  if (ret < 0) throw std::runtime_error(avcpp::getErrorMessage(ret));
   if (ret == 1) return;
 
   auto tic = get_clock()->now();
@@ -162,14 +163,10 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   ++recievedFrames;
 
   // * Calculate latency
-  if (m_decoder.getFrame().pts() > 0) {
-    rclcpp::Time originalStamp(
-        static_cast<uint32_t>(m_decoder.getFrame().pts() >> 32),
-        static_cast<int32_t>((m_decoder.getFrame().pts() << 32) >> 32),
-        RCL_ROS_TIME);
-
-    totalLatency += (get_clock()->now() - originalStamp).seconds() * 1000;
-  }
+  totalLatency +=
+      (get_clock()->now() - UNPACK_STAMP(m_decoder.getFrame().pts()))
+          .seconds() *
+      1000;
 
   if (recievedFrames == 256) {
     decodingTime = totalLatency - (encoderTime + messageTime + conversionTime +

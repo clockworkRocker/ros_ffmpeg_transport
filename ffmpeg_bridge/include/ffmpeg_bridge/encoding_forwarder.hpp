@@ -2,7 +2,7 @@
 #define FFMPEG_BRIDGE__ENCODING_FORWARDER_H
 
 #include <rclcpp/rclcpp.hpp>
-#include <av_wrapper/video_encoder.h>
+#include <avcpp/AV.hpp>
 #include <ffmpeg_interfaces/msg/av_packet.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <yaml-cpp/yaml.h>
@@ -39,8 +39,8 @@ class EncodingForwarder : public rclcpp::Node {
  private:
   rclcpp::Subscription<InMessage>::SharedPtr m_sub;
   rclcpp::Publisher<OutMessage>::SharedPtr m_pub;
-  avwrapper::VideoEncoder m_encoder;
-  avwrapper::Frame m_frame;
+  avcpp::VideoEncoder m_encoder;
+  avcpp::Frame m_frame;
   YAML::Node m_options;
   int m_fps = DefaultFPS;
   int m_gopsize = DefaultGOPSize;

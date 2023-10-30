@@ -4,8 +4,8 @@
 #include <ffmpeg_bridge/encoding_forwarder.hpp>
 
 using std::placeholders::_1;
-using Frame = avwrapper::Frame;
-using Packet = avwrapper::Packet;
+using Frame = avcpp::Frame;
+using Packet = avcpp::Packet;
 
 namespace ffmpeg_bridge {
 EncodingForwarder::EncodingForwarder(const std::string& inputTopic,
@@ -99,10 +99,7 @@ void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
 
     m_pub->publish(outMsg);
 
-    latency += (rclcpp::Time(outMsg.header.stamp) -
-                rclcpp::Time(static_cast<uint32_t>(compact.pts() >> 32),
-                             static_cast<int32_t>((compact.pts() << 32) >> 32),
-                             RCL_ROS_TIME))
+    latency += (rclcpp::Time(outMsg.header.stamp) - UNPACK_STAMP(compact.pts()))
                    .seconds() *
                1000;
 
@@ -162,8 +159,7 @@ int EncodingForwarder::fillFrame(const InMessage& msg) {
     m_frame = Frame(correctW, correctH, m_encoder.defaultPixFmt());
 
   // * Fill the frame
-  m_frame.setPts(static_cast<int64_t>(msg.header.stamp.sec) << 32 |
-                 static_cast<int64_t>(msg.header.stamp.nanosec));
+  m_frame.setPts(PACK_STAMP(msg.header.stamp));
   msg >> m_frame;
 
   return 0;

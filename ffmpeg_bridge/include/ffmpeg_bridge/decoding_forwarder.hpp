@@ -1,7 +1,6 @@
-#include <av_wrapper/video_decoder.h>
-
-#include <ffmpeg_interfaces/msg/av_packet.hpp>
+#include <avcpp/AV.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <ffmpeg_interfaces/msg/av_packet.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -28,8 +27,8 @@ class DecodingForwarder : public rclcpp::Node {
  private:
   rclcpp::Subscription<InMessage>::SharedPtr m_sub;
   rclcpp::Publisher<OutMessage>::SharedPtr m_pub;
-  avwrapper::VideoDecoder m_decoder;
-  avwrapper::Packet m_packet;
+  avcpp::VideoDecoder m_decoder;
+  avcpp::Packet m_packet;
   YAML::Node m_options;
   bool m_recievedKeyframe = false;
 };
