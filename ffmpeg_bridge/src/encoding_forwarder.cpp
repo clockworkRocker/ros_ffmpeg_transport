@@ -54,7 +54,7 @@ EncodingForwarder::EncodingForwarder(const YAML::Node& config)
                     : DefaultGOPSize) {
   RCLCPP_INFO(get_logger(),
               "Created encoder. \nSubscribed to %s. Publishing packets on %s",
-              m_sub->get_topic_name(), m_sub->get_topic_name());
+              m_sub->get_topic_name(), m_pub->get_topic_name());
 }
 
 void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
@@ -84,8 +84,9 @@ void EncodingForwarder::subscriptionCallback(const InMessage& msg) {
 
     outMsg.set__width(m_encoder.frameWidth());
     outMsg.set__height(m_encoder.frameHeight());
-    outMsg.set__pix_fmt(m_encoder.pixelFormat());
+    outMsg.set__pix_fmt(getPixelFormat(msg.encoding));
 
+    outMsg.set__coded_pix_fmt(m_encoder.pixelFormat());
     outMsg.set__keyframe(compact.hasKeyframe());
     outMsg.set__codec_id(compact.codecID());
     outMsg.set__pts(compact.pts());

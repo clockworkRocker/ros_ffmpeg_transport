@@ -7,6 +7,7 @@ uint16  width
 uint16  height
 
 # Description of the compressed image
+int16   coded_pix_fmt
 bool    keyframe
 
 # Codec information

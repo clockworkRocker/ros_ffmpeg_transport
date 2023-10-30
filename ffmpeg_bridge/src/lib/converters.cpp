@@ -47,7 +47,7 @@ sensor_msgs::msg::Image& operator<<(sensor_msgs::msg::Image& msg,
                                     const avcpp::Frame& frame) {
   AVPixelFormat format = getPixelFormat(msg.encoding);
   msg.data.resize(
-      av_image_get_buffer_size(format, frame.width(), frame.height(), 32));
+      av_image_get_buffer_size(format, frame.width(), frame.height(), avcpp::Frame::DefaultAlign));
 
   uint8_t* data[] = {&msg.data[0]};
   int linesize[4];

@@ -100,7 +100,7 @@ int DecodingForwarder::reconfigureDecoder(const InMessage& msg) {
 
   m_decoder.setFrameWidth(msg.width);
   m_decoder.setFrameHeight(msg.height);
-  m_decoder.setFramePixelFormat(static_cast<AVPixelFormat>(msg.pix_fmt));
+  m_decoder.setFramePixelFormat(static_cast<AVPixelFormat>(msg.coded_pix_fmt));
   m_decoder.setBitrate(m_decoder.ACCORDINGLY);
 
   return m_decoder.open();
@@ -129,7 +129,7 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
 
   if (msg.width != m_decoder.frameWidth() ||
       msg.height != m_decoder.frameHeight() ||
-      static_cast<AVPixelFormat>(msg.pix_fmt) != m_decoder.pixelFormat()) {
+      static_cast<AVPixelFormat>(msg.coded_pix_fmt) != m_decoder.pixelFormat()) {
     ret = reconfigureDecoder(msg);
     if (ret < 0)
       throw std::runtime_error(
@@ -145,7 +145,7 @@ void DecodingForwarder::subscriptionCallback(const InMessage& msg) {
   OutMessage outMsg;
   outMsg.set__width(m_decoder.frameWidth());
   outMsg.set__height(m_decoder.frameHeight());
-  outMsg.set__encoding("rgb8");
+  outMsg.set__encoding(getROSEncoding(msg.pix_fmt));
   outMsg.set__is_bigendian(AV_HAVE_BIGENDIAN);
 
   outMsg << m_decoder.getFrame();
