@@ -11,6 +11,7 @@ OPTION(ADDR_SANITIZE OFF)
 find_package(ament_cmake REQUIRED)
 
 find_package(rclcpp REQUIRED)
+find_package(rclpy REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(ffmpeg_interfaces REQUIRED)
 find_package(avcpp REQUIRED)
@@ -80,5 +81,13 @@ install(TARGETS
   ${DECODER_EXEC_NAME}
   DESTINATION lib/${PROJECT_NAME}
 )
+
+ament_python_install_package(python)
+# find_package(Python3 COMPONENTS Interpreter Development)
+# install(FILES
+#   python/ffmpeg_bridge.py
+#   python/utils.py
+#   DESTINATION "local/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/dist-packages"
+# )
 
 ament_package()

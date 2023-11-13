@@ -7,6 +7,7 @@ services:
     volumes:
       - /dev:/dev
       - ${WORKSPACE_DIR}:/ros_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix
     privileged: true
     runtime: nvidia
     deploy:
@@ -16,3 +17,5 @@ services:
             - driver: 'nvidia'
               count: 'all'
               capabilities: ['gpu', 'video']
+    environment:
+      - DISPLAY=${DISPLAY}

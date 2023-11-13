@@ -9,3 +9,8 @@ build/
 install/
 log/
 
+# -------- Test script dirs -------- #
+scripts/
+
+# -------- Python stuff -------- 3
+__pycache__/
