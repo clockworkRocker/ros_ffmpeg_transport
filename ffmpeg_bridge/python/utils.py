@@ -1,5 +1,6 @@
+from copy import deepcopy
 import sys
-
+from typing import final
 import numpy as np
 import libavpy as av
 from ffmpeg_interfaces.msg import AVPacket
@@ -61,33 +62,57 @@ def pixel_format(encoding: str) -> av.PixelFormat:
         raise ValueError("Encoding is not currently supported by libav")
 
 
-def messagify_frame(frame: av.Frame, copy: bool = True) -> Image:
+def messagify_frame(
+    frame: av.Frame, copy: bool = True, format: av.PixelFormat = av.PixelFormat.NONE
+) -> Image:
+    final_format = (
+        format if (format != av.PixelFormat.NONE) else av.PixelFormat(frame.format())
+    )
+
     try:
-        encoding = ros_encoding(av.PixelFormat(frame.format()))
+        encoding = ros_encoding(final_format)
     except:
         encoding = "rgb8"
-    
+        final_format = av.PixelFormat.RGB24
+
+    if not copy and format != av.PixelFormat.NONE:
+        data = bytes(frame)
+    else:
+        frame2 = deepcopy(frame)
+        frame2.to_format(final_format)
+        data = bytes(frame2)
+
     return Image(
         height=frame.height(),
         width=frame.width(),
         encoding=encoding,
         step=frame.row_step(),
-        data=frame.to_numpy().tobytes(),
+        data=data,
     )
+
 
 def messagify_packet(packet: av.Packet, copy: bool = True, **kwargs) -> AVPacket:
     return AVPacket(
-        pix_fmt=kwargs.pop("pix_fmt", av.PixelFormat.NONE),
+        pix_fmt=int(kwargs.pop("pix_fmt", av.PixelFormat.NONE)),
         width=kwargs.pop("width", 0),
         height=kwargs.pop("height", 0),
-        codec_id=kwargs.pop("codec_id", av.CodecID.NONE),
-        coded_pix_fmt=kwargs.pop("coded_pix_fmt", av.CodecID.NONE),
+        codec_id=int(kwargs.pop("codec_id", av.CodecID.NONE)),
+        coded_pix_fmt=int(kwargs.pop("coded_pix_fmt", av.PixelFormat.NONE)),
         pts=packet.pts,
         keyframe=packet.has_keyframe(),
-        data=packet.buffer()
+        data=bytes(packet),
     )
 
 
-def from_image(img: Image, copy: bool = True) -> av.Frame:
-    arr = np.array(img.data, dtype=np.uint8, copy=copy)
+def from_image_msg(img: Image, copy: bool = True) -> av.Frame:
+    arr = np.array(img.data, dtype=np.uint8, copy=copy).reshape(
+        img.height, img.width, -1
+    )
     return av.Frame.from_numpy(arr, pixel_format(img.encoding), copy)
+
+
+def from_packet_msg(msg: AVPacket, copy: bool = True) -> av.Packet:
+    packet = av.Packet.from_bytes(msg.data, copy, pts=msg.pts)
+    packet.codec_id = msg.codec_id
+
+    return packet
