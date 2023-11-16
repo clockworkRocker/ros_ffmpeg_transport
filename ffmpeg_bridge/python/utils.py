@@ -112,7 +112,8 @@ def from_image_msg(img: Image, copy: bool = True) -> av.Frame:
 
 
 def from_packet_msg(msg: AVPacket, copy: bool = True) -> av.Packet:
-    packet = av.Packet.from_bytes(msg.data, copy, pts=msg.pts)
-    packet.codec_id = msg.codec_id
+    flags = int(msg.keyframe)
+    packet = av.Packet.from_bytes(msg.data, copy, pts=msg.pts, flags=flags)
+    packet.codec_id = av.CodecID(msg.codec_id)
 
     return packet

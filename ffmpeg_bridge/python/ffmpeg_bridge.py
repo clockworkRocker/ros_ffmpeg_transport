@@ -8,6 +8,8 @@ import utils
 
 
 class BasicEncoder(Node):
+    __slots__ = ["encoder", "options", "fps", "gop_size", "callback", "subscriber"]
+
     def __init__(
         self,
         name: str,
@@ -21,6 +23,7 @@ class BasicEncoder(Node):
         self.fps = av.Ratio(config["encoder"].get("fps", 30), 1)
         self.gop_size = config["encoder"].get("keyframe_every", 60)
 
+        self.callback = on_encode
         self.subscriber = self.create_subscription(
             Image,
             config["input_topic"],
@@ -48,7 +51,7 @@ class BasicEncoder(Node):
 
         self.encoder.open()
 
-    def encode(self, msg: Image):
+    def encode(self, msg: Image) -> AVPacket | None:
         if (
             msg.width != self.encoder.frame_width
             or msg.height != self.encoder.frame_height
@@ -62,37 +65,42 @@ class BasicEncoder(Node):
         if ret == 1:
             return None
         if ret == 0:
-            return utils.messagify_packet(self.encoder.packet)
+            return self.encoder.packet
         else:
             raise RuntimeError("Failed to encode packet")
 
 
 class BasicDecoder(Node):
+    __slots__ = ["decoder", "options", "callback", "subscriber", "ready"]
+
     def __init__(
         self,
         name: str,
         config: dict,
-        on_decode: Callable[[AVPacket, Image | None], None] | None = None,
+        on_decode: Callable[[AVPacket, av.Frame | None], None] | None = None,
     ):
         super().__init__(name)
         self.decoder = av.VideoDecoder(config["decoder"]["name"])
 
         self.options = config["decoder"].get("options", {})
-
+        self.callback = on_decode
         self.subscriber = self.create_subscription(
             AVPacket,
             config["input_topic"],
-            (lambda msg: on_decode(msg, self.decode(msg)))
-            if (on_decode is not None)
-            else self.decode,
+            (
+                (lambda msg: on_decode(msg, self.decode(msg)))
+                if on_decode is not None
+                else self.decode
+            ),
             10,
         )
+        self.ready = False
 
     def reconfigure(self, msg: AVPacket):
         self.decoder.reset()
         self.decoder.frame_width = msg.width
         self.decoder.frame_height = msg.height
-        self.decoder.pixel_format = msg.coded_pix_fmt
+        self.decoder.pixel_format = av.PixelFormat(msg.coded_pix_fmt)
 
         # This magic constant means that the bitrate will be calculated
         # according to given image dimensions and pixel format
@@ -103,10 +111,15 @@ class BasicDecoder(Node):
 
         self.decoder.open()
 
-    def decode(self, msg: AVPacket):
+    def decode(self, msg: AVPacket) -> av.Frame | None:
+        if msg.keyframe:
+            self.ready = True
+        if not self.ready:
+            return None
+
         if (
             msg.width != self.decoder.frame_width
-            or msg.height != self.decoder.msg_height
+            or msg.height != self.decoder.frame_height
             or msg.coded_pix_fmt != self.decoder.pixel_format
         ):
             self.reconfigure(msg)
@@ -117,6 +130,6 @@ class BasicDecoder(Node):
         if ret == 1:
             return None
         if ret == 0:
-            return utils.messagify_frame(self.decoder.frame, True, msg.pix_fmt)
+            return self.decoder.frame
         else:
             raise RuntimeError("Failed to decode packet")
